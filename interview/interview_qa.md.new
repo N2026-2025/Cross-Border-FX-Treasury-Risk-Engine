@@ -1,0 +1,96 @@
+﻿# Motor de Tesorería FX - Entrevista Q&A
+
+## Preguntas Técnicas y Respuestas
+
+### Q1: Explique la arquitectura del Motor de Riesgo de Tesorería FX.
+**A:** The architecture follows a modular pipeline design with clear separation of concerns:
+
+1. **Data Ingestion Layer**: Five specialized adapters (FRED, Frankfurter, ArgentinaDatos, BCRA, CoinGecko, INDEC) each implement a common `BaseAdapter` interface with consistent rate model. Uses retry logic with exponential backoff (tenacity) and HTTP client caching.
+
+2. **Caching Layer**: Source-specific TTL caching with graceful degradation. Each source has different refresh frequency (CoinGecko every 60s, FRED hourly, INDEC daily).
+
+3. **Normalization Layer**: Rates are normalized to a common base currency (USD) with Decimal precision. Spread calculations performed in basis points (bps) for arbitrage detection.
+
+4. **Analysis Layer**: Arbitrage engine compares rates across sources, generates signals with confidence scoring and expected savings in USD.
+
+5. **Output Layer**: FastAPI REST API and Streamlit dashboard for visualization and alerts.
+
+### Q2: Why did you choose Decimal instead of float for financial calculations?
+**A:** Floating-point arithmetic causes precision drift, which is unacceptable for financial calculations where a 0.01 error can represent millions of dollars. Using Python's `decimal.Decimal` ensures exact precision. We quantize rates to 4 decimal places for FX and perform all spread calculations with absolute accuracy.
+
+### Q3: How do you handle rate source disagreements?
+**A:** The spread calculator compares rates across sources. For USD/ARS, we compare FRED official vs. BCRA official vs. ArgentinaDatos blue/financial rates. Discrepancies become arbitrage opportunities. The system supports buy/sell signals based on which source is cheaper.
+
+### Q4: Explain the arbitrage logic. How do you calculate basis points?
+**A:** Arbitrage detection compares two rates A and B. Spread in bps = |(RateA - RateB) / RateA| Ã— 10,000. If spread exceeds threshold (default 50 bps), a signal is generated. Direction: if RateA > RateB, BUY at B, SELL at A.
+
+### Q5: How does the stablecoin arbitrage work?
+**A:** We use CoinGecko to track USDT/USDC USD prices. If deviation from $1.00 peg exceeds 100 bps (1%), we flag depeg risk and exclude from arbitrage. We also cross-reference stablecoin liquidity with BCRA reserves for treasury routing decisions.
+
+### Q6: How do you adjust for inflation in FX calculations?
+**A:** Using the Fisher equation: Real = (1 + Nominal) / (1 + Inflation) - 1. We apply monthly inflation adjustments using INDEC CPI data to calculate inflation-adjusted real USD exposure.
+
+### Q7: What are the different rate types and how do you handle them?
+**A:** Rate types include OFFICIAL, FINANCIAL, BLUE, MID_MARKET, and SPOT. For Argentina, we distinguish between oficial (BCRA), blue (parallel market), and financial (MEP/CCL) rates. Each has different liquidity implications for treasury decisions.
+
+### Q8: How would you scale this engine to Brazil or Mexico?
+**A:** The architecture is already multi-currency. Add sources: BCB (Brazil), Banxico (Mexico), and extend the adapter registry. The arbitrage logic is currency-agnostic since it operates on rate pairs.
+
+### Q9: How do you handle API rate limits?
+**A:** Each adapter respects source-specific rate limits and caches responses with TTL based on source frequency. Retries use exponential backoff via tenacity library.
+
+### Q10: What is the financial impact threshold for an arbitrage signal?
+**A:** We set default threshold at 50 bps. For a $1M USD treasury, a 50 bps opportunity equals $5,000 savings per conversion cycle. Signals with confidence > 0.5 are surfaced for action.
+
+## Architecture Question
+
+### Q11: Walk me through how you'd design a system for 10 currencies.
+**A:** I'd:
+1. Design a rate pair table with all currency combinations
+2. Use hash-based keying for cache efficiency
+3. Implement cross-rate conversion functions
+4. Create unified arbitrage matrix
+5. Generate portfolio-level hedging recommendations
+
+### Q12: How do you test financial logic?
+**A:** We use Decimal in tests, test rounding behavior, test banker's rounding vs. round-half-up, and validate spread calculations against historical benchmarks.
+
+## Design Patterns Question
+
+### Q13: What design patterns did you use and why?
+**A:**
+- **Adapter Pattern**: For API source abstraction
+- **Strategy Pattern**: For arbitrage algorithms (pluggable)
+- **Circuit Breaker**: For graceful API failure handling
+- **Factory Pattern**: For adapter instantiation based on config
+
+## Performance Question
+
+### Q14: How do you ensure data freshness?
+**A:** Source-specific TTLs (CoinGecko 60s, FRED 3600s, BCRA 900s, INDEC 86400s), cache invalidation on TTL expiry, and stale-while-revalidate pattern for resilience.
+
+### Q15: How do you monitor the system?
+**A:** Structured logging (structlog), health checks per source, signal history tracking, and confidence scoring on all arbitrage signals.
+
+---
+
+## Quick Reference Answers for Interviews
+
+### The 30-Second Pitch:
+> "I built a multi-currency treasury pipeline integrating Fed rates, ECB FX data, and emerging-market central bank APIs to track real-time FX exposure and inflation erosionâ€”helping global finance teams protect margins and optimize cross-border liquidity."
+
+### Technical Deep Dive Prompts:
+
+**"Walk me through your data pipeline":** Ingestion â†’ Normalization â†’ Analysis â†’ Output
+
+**"How do you handle precision?":** Decimal type, quantization to 4dp for FX.
+
+**"How do you detect arbitrage?":** Spread in bps across sources, threshold-based signals.
+
+**"How do you adjust for inflation?":** Fisher equation with CPI data.
+
+**"How scalable is this?":** Adapter registry makes adding new markets straightforward.
+
+---
+
+*This document accompanies the Cross-Border FX & Treasury Risk Engine project in plans/ directory.*

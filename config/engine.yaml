@@ -1,0 +1,46 @@
+environment: development
+log_level: INFO
+cache_backend: memory
+decimal_precision: 8
+spread_threshold_bps: 50
+data_dir: data
+
+sources:
+  FRED:
+    enabled: true
+    cache_ttl_seconds: 3600
+    api_key: ${FRED_API_KEY}
+    base_url: https://api.stlouisfed.org/fred
+    timeout_seconds: 30
+    retries: 3
+  FRANKFURTER:
+    enabled: true
+    cache_ttl_seconds: 1800
+    base_url: https://api.frankfurter.app
+    timeout_seconds: 30
+    retries: 3
+  ARGENTINA_DATOS:
+    enabled: true
+    cache_ttl_seconds: 600
+    base_url: https://api.argentinadatos.com/v1
+    timeout_seconds: 30
+    retries: 3
+  BCRA:
+    enabled: true
+    cache_ttl_seconds: 900
+    api_key: ${BCRA_API_KEY}
+    base_url: https://apis.bcra.gob.ar
+    timeout_seconds: 30
+    retries: 3
+  COINGECKO:
+    enabled: true
+    cache_ttl_seconds: 60
+    base_url: https://api.coingecko.com/api/v3
+    timeout_seconds: 30
+    retries: 3
+  INDEC:
+    enabled: true
+    cache_ttl_seconds: 86400
+    base_url: https://apis.datos.gob.ar/series/api
+    timeout_seconds: 30
+    retries: 3
